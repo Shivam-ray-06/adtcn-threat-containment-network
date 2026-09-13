@@ -1,0 +1,17 @@
+# Java build output
+backend-java/out/
+
+# Compiled C++ demo binaries
+agent-cpp/endpoint_agent
+network-cpp/network_sensor
+simulator-cpp/attack_simulator
+
+# Runtime telemetry and generated decoys
+simulator-cpp/flow_log.jsonl
+decoys/*
+!decoys/.gitkeep
+
+# Local/editor files
+.DS_Store
+.vscode/
+*.swp

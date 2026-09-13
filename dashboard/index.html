@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ADTCN — Threat Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #071526;
+    --panel: #0d2038;
+    --panel-border: #1a3b5c;
+    --text: #e4ebf3;
+    --muted: #7a8699;
+    --green: #2fd480;
+    --yellow: #eec14c;
+    --orange: #f0954a;
+    --red: #f24f4f;
+    --blue: #67b7ff;
+    --purple: #a374f0;
+    --lime: #B6FF2E;
+    --cyan: #54d8ff;
+    --blue-deep: #06111f;
+    --blue-soft: #102d4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  #login-page {
+    min-height: 100vh; display: grid; place-items: center; padding: 24px;
+    background: #23262f; color: #f0f3e8;
+  }
+  .login-shell { width: min(420px, 100%); }
+  .login-mark { color: #B6FF2E; font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 12px; }
+  .login-card { background: #292d37; border: 1px solid #454b58; border-radius: 14px; padding: 32px; box-shadow: 0 24px 70px rgba(0,0,0,0.35); }
+  .login-card h1 { font-size: 28px; line-height: 1.05; margin-bottom: 8px; }
+  .login-card .sub { color: #aeb5c2; font-size: 13px; margin-bottom: 26px; }
+  .login-field { display: block; color: #c7ced9; font-size: 12px; font-weight: 700; margin-top: 15px; }
+  .login-field input { width: 100%; margin-top: 7px; padding: 12px 13px; border: 1px solid #535b69; border-radius: 8px; background: #23262f; color: #f0f3e8; font: inherit; outline: none; }
+  .login-field input:focus { border-color: #B6FF2E; box-shadow: 0 0 0 3px rgba(182,255,46,0.15); }
+  .login-submit { width: 100%; justify-content: center; margin-top: 22px; border-color: #B6FF2E; background: #B6FF2E; color: #23262F; font-weight: 800; }
+  .login-submit:hover { background: #c7ff61; }
+  .login-error { min-height: 18px; color: #ff8b8b; font-size: 12px; margin-top: 12px; }
+  #app-shell { padding: 24px; }
+  .command-layout { display: grid; grid-template-columns: 238px minmax(0, 1fr); gap: 24px; max-width: 1800px; margin: 0 auto; }
+  .side-rail { position: sticky; top: 20px; align-self: start; min-height: calc(100vh - 48px); background: #081525; border: 1px solid #193654; border-radius: 14px; padding: 18px 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px; border-bottom: 1px solid #193654; }
+  .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--lime); color: #0b1d08; font-weight: 900; }
+  .brand strong { display: block; font-size: 14px; letter-spacing: 0.08em; }
+  .brand small { color: var(--muted); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .rail-label { color: #607d9a; font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin: 25px 8px 8px; }
+  .rail-link { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 9px; border: 0; border-radius: 7px; color: #8da5bc; background: transparent; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+  .rail-link:hover, .rail-link.active { color: var(--lime); background: #10283e; }
+  .rail-link .count { margin-left: auto; color: #6c839a; font-size: 10px; }
+  .rail-status { margin: 24px 4px 0; padding: 11px; border: 1px solid #1c4567; border-radius: 8px; background: #0b2035; color: #8da5bc; font-size: 10px; line-height: 1.5; }
+  .rail-status b { color: var(--lime); }
+  .dashboard-content { min-width: 0; }
+  .dashboard-content .header { padding-bottom: 18px; border-bottom: 1px solid #163550; }
+  .eyebrow { color: var(--lime); font-size: 10px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 8px; }
+  .coverage-panel { margin-bottom: 14px; }
+  .coverage-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .coverage-heading p { color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .coverage-total { color: var(--lime); font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .coverage-grid { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 9px; overflow-x: auto; padding-bottom: 2px; }
+  .coverage-card { min-height: 112px; border: 1px solid #244764; border-bottom: 3px solid var(--coverage, var(--blue)); border-radius: 8px; background: #0b1a2b; padding: 12px; cursor: pointer; transition: transform 0.16s, border-color 0.16s; }
+  .coverage-card:hover { transform: translateY(-2px); border-color: var(--coverage, var(--blue)); }
+  .coverage-card .icon { color: var(--coverage, var(--blue)); font-size: 18px; }
+  .coverage-card .coverage-count { float: right; color: var(--text); font-size: 20px; font-weight: 800; }
+  .coverage-card h3 { clear: both; font-size: 12px; margin-top: 17px; }
+  .coverage-card small { display: block; color: var(--muted); margin-top: 8px; font-size: 10px; }
+  .map-panel { min-height: 420px; }
+  #attack-map { height: 310px; border: 1px solid #244c70; border-radius: 9px; overflow: hidden; background: #092039; }
+  .leaflet-container { background: #092039; font-family: inherit; }
+  .leaflet-tile { filter: saturate(0.8); }
+  .leaflet-control-zoom a { background: #0b2035 !important; color: var(--text) !important; border-color: #244c70 !important; }
+  .map-empty { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 12px; }
+  .ip-popup strong { color: #0d2538; }
+  .ip-popup small { display: block; margin-top: 4px; }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  }
+  .title-block h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .title-block .sub { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .live-dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .header-controls { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    background: var(--panel); border: 1px solid var(--panel-border); color: var(--text);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+  }
+  .btn:hover { background: #182030; }
+  .btn.active { border-color: var(--red); color: var(--red); }
+  .btn.logout { border-color: #355a7d; color: #b7d8f5; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .stat-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
+  .stat-card.alert .num { color: var(--red); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr 1.4fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 18px; display: flex; flex-direction: column;
+  }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-body { flex: 1; overflow-y: auto; max-height: 340px; }
+  .empty-hint { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; }
+
+  .entity-item { margin-bottom: 14px; }
+  .entity-item .row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .entity-item .name { font-weight: 600; }
+  .score-track { height: 8px; background: #1a212c; border-radius: 4px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .fill-NORMAL { background: var(--green); }
+  .fill-SUSPICIOUS { background: var(--yellow); }
+  .fill-HIGH_RISK { background: var(--orange); }
+  .fill-CRITICAL { background: var(--red); }
+  .level-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.03em; }
+  .level-tag.NORMAL { background: rgba(47,212,128,0.14); color: var(--green); }
+  .level-tag.SUSPICIOUS { background: rgba(238,193,76,0.14); color: var(--yellow); }
+  .level-tag.HIGH_RISK { background: rgba(240,149,74,0.14); color: var(--orange); }
+  .level-tag.CRITICAL { background: rgba(242,79,79,0.16); color: var(--red); }
+
+  .event-row {
+    display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #161d28; font-size: 12.5px;
+  }
+  .event-row .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--blue); }
+  .event-row .dot.decoy { background: var(--purple); }
+  .event-row .time { color: var(--muted); font-size: 11px; min-width: 62px; }
+  .event-row .body b { color: var(--text); }
+  .event-row .type { color: var(--blue); font-weight: 600; }
+
+  #flow-svg-wrap { overflow-x: auto; overflow-y: hidden; flex: 1; }
+  .flow-node rect { fill: #16202e; stroke: #2c3b4d; stroke-width: 1.2; }
+  .flow-node.sensitive rect { stroke: var(--red); }
+  .flow-node text { fill: var(--text); font-size: 11px; font-family: inherit; }
+  .flow-edge path { fill: none; stroke: var(--blue); stroke-width: 1.6; marker-end: url(#arrow); }
+  .flow-edge text { fill: var(--muted); font-size: 9.5px; }
+
+  .incident-card {
+    border-left: 3px solid var(--red); background: rgba(242,79,79,0.05);
+    border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 12.5px;
+  }
+  .incident-card .top-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .incident-card .level { font-weight: 700; color: var(--red); }
+  .incident-card .action { color: var(--blue); margin-top: 4px; font-size: 12px; }
+  .incident-card .reason { color: var(--muted); }
+  .incident-card.INCREASE_MONITORING { border-left-color: var(--yellow); background: rgba(238,193,76,0.05); }
+  .incident-card.INCREASE_MONITORING .level { color: var(--yellow); }
+  .incident-card.RESTRICT { border-left-color: var(--orange); background: rgba(240,149,74,0.05); }
+  .incident-card.RESTRICT .level { color: var(--orange); }
+
+  .incidents-panel { grid-column: 1 / -1; }
+  .incidents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+
+  .attack-panel { grid-column: 1 / -1; }
+  .attack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .attack-card { border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px; background: #0d131c; }
+  .attack-card h3 { font-size: 13px; margin-bottom: 5px; color: var(--text); }
+  .attack-card .tactic { color: var(--blue); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .attack-card p { color: var(--muted); font-size: 11.5px; line-height: 1.45; margin-top: 8px; }
+  .attack-card strong { color: var(--text); }
+  .ai-panel { grid-column: 1 / -1; }
+  .ai-detection { border-left: 3px solid var(--blue); background: rgba(76,158,239,0.05); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; }
+  .ai-detection .top-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .ai-detection .confidence { color: var(--green); font-size: 10px; text-transform: uppercase; }
+  .ai-detection .detail { color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .library-layout { display: grid; grid-template-columns: minmax(230px, 0.8fr) minmax(0, 2fr); gap: 14px; margin-bottom: 14px; }
+  .library-panel, .map-panel { min-height: 320px; }
+  .attack-detail-layout { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.45fr); gap: 14px; margin-bottom: 14px; }
+  .attack-detail-panel { min-height: 420px; }
+  .detail-kicker { color: var(--lime); font-size: 10px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+  .detail-title { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
+  .detail-title h2 { color: var(--text); font-size: 24px; letter-spacing: 0; text-transform: none; margin: 0; }
+  .detail-status { color: var(--lime); border: 1px solid rgba(182,255,46,0.35); border-radius: 20px; padding: 5px 9px; font-size: 10px; white-space: nowrap; }
+  .detail-description { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 18px; }
+  .detail-section { border-top: 1px solid #1b3a59; padding-top: 12px; margin-top: 12px; }
+  .detail-section h3 { color: var(--blue); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px; }
+  .detail-section p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .evidence-list { display: grid; gap: 7px; }
+  .evidence-item { border: 1px solid #1b3a59; border-radius: 6px; background: #091a2d; padding: 8px 10px; font-size: 11px; overflow-wrap: anywhere; }
+  .evidence-item b { color: var(--lime); display: block; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .detail-empty { color: var(--muted); font-size: 12px; padding: 30px 0; text-align: center; }
+  .containment-panel { grid-column: 1 / -1; }
+  .containment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .containment-group { border: 1px solid #244764; border-radius: 8px; padding: 12px; background: #0b1a2b; }
+  .containment-group h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .containment-group.isolated h3 { color: var(--red); }
+  .containment-group.encrypted h3 { color: var(--lime); }
+  .containment-group.decoy h3 { color: var(--yellow); }
+  .containment-group p { color: var(--muted); font-size: 11px; line-height: 1.45; }
+  .containment-asset { display: inline-block; color: var(--text); border: 1px solid #2a5274; border-radius: 4px; padding: 4px 6px; margin: 3px 3px 0 0; font-size: 10px; }
+  .flow-node.isolated rect { stroke: var(--red); fill: rgba(242,79,79,0.14); }
+  .flow-node.encrypted rect { stroke: var(--lime); fill: rgba(182,255,46,0.08); }
+  .flow-node.attacked rect { stroke: var(--orange); }
+  .flow-node .state-label { font-size: 8px; font-weight: 700; }
+  @media (max-width: 800px) { .containment-grid { grid-template-columns: 1fr; } }
+  .library-group { margin-bottom: 14px; }
+  .library-class { color: var(--blue); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .library-item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #161d28; font-size: 12px; }
+  .library-item small { color: var(--muted); text-align: right; }
+  .library-card { border-bottom: 1px solid #1b3a59; padding: 10px 0 14px; margin-bottom: 12px; }
+  .library-card h3 { font-size: 12px; margin-bottom: 4px; }
+  .library-card .library-tactic { color: var(--blue); font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .library-card p { color: var(--muted); font-size: 10.5px; line-height: 1.35; margin-top: 5px; }
+  .library-mini-map { position: relative; height: 92px; overflow: hidden; margin-top: 9px; border: 1px solid #244c70; border-radius: 7px; background: #091a2d; }
+  .library-mini-map .world-map { width: 100%; height: 100%; display: block; }
+  .world-land { fill: #244866; stroke: #32658b; stroke-width: 0.7; opacity: 0.9; }
+  .world-grid { stroke: #4c87ad; stroke-width: 0.3; opacity: 0.35; }
+  .world-pin { fill: #B6FF2E; stroke: #102000; stroke-width: 1.3; }
+  .library-location { color: #B6FF2E !important; font-size: 10px !important; }
+  .map-canvas { position: relative; min-height: 190px; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 8px; background-color: #0d131c; background-image: linear-gradient(rgba(76,158,239,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(76,158,239,0.08) 1px, transparent 1px); background-size: 28px 28px; }
+  .map-canvas::after { content: "NETWORK VIEW · IP LOCATIONS ARE SENSOR / LAB ADDRESSES"; position: absolute; right: 10px; bottom: 8px; color: #536278; font-size: 9px; letter-spacing: 0.04em; }
+  .map-node { position: absolute; transform: translate(-50%, -50%); z-index: 1; text-align: center; font-size: 10px; white-space: nowrap; }
+  .map-node .pin { display: block; width: 12px; height: 12px; margin: 0 auto 4px; border: 2px solid var(--red); border-radius: 50%; background: #0d131c; box-shadow: 0 0 0 4px rgba(242,79,79,0.15), 0 0 14px rgba(242,79,79,0.7); }
+  .map-node.target .pin { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(76,158,239,0.15), 0 0 14px rgba(76,158,239,0.7); }
+  .map-node b { color: var(--text); display: block; }
+  .map-node small { color: var(--muted); }
+  .map-link { position: absolute; height: 1px; background: var(--blue); transform-origin: 0 0; opacity: 0.65; z-index: 0; }
+  .map-events { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
+  .map-event { min-width: 180px; padding: 7px 9px; border-left: 2px solid var(--blue); background: #0d131c; font-size: 11px; }
+  .map-event b { color: var(--text); }
+  .map-event small { display: block; color: var(--muted); margin-top: 3px; }
+
+  .footer-note { color: var(--muted); font-size: 11px; margin-top: 8px; }
+  @media (max-width: 1100px) { .command-layout { grid-template-columns: 190px minmax(0, 1fr); gap: 14px; } .coverage-grid { grid-template-columns: repeat(4, minmax(130px, 1fr)); } }
+  @media (max-width: 800px) { body { padding: 10px; } #app-shell { padding: 10px; } .command-layout { display: block; } .side-rail { position: static; min-height: auto; margin-bottom: 14px; } .rail-nav { display: flex; overflow-x: auto; gap: 4px; } .rail-label, .rail-status { display: none; } .rail-link { width: auto; white-space: nowrap; } .stat-row { grid-template-columns: repeat(2, 1fr); } .grid, .library-layout, .attack-detail-layout { grid-template-columns: 1fr; } .coverage-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); } }
+</style>
+</head>
+<body>
+
+<section id="login-page">
+  <div class="login-shell">
+    <div class="login-mark">ADTCN · SOC ACCESS</div>
+    <form class="login-card" id="login-form">
+      <h1>Threat console</h1>
+      <div class="sub">Authenticate to open the autonomous deception and containment network.</div>
+      <label class="login-field">SOC identity
+        <input id="login-id" type="email" autocomplete="username" placeholder="name@SOC.in" required>
+      </label>
+      <label class="login-field">Password
+        <input id="login-password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+      </label>
+      <button class="btn login-submit" type="submit">Enter SOC dashboard</button>
+      <div class="login-error" id="login-error" aria-live="polite"></div>
+    </form>
+  </div>
+</section>
+
+<main id="app-shell" hidden>
+
+<div class="command-layout">
+<aside class="side-rail">
+  <div class="brand"><span class="brand-mark">A</span><div><strong>ADTCN</strong><small>SOC command</small></div></div>
+  <div class="rail-label">Workspace</div>
+  <nav class="rail-nav" aria-label="Dashboard sections">
+    <button class="rail-link active" data-scroll-target="overview">▦ <span>Command overview</span></button>
+    <button class="rail-link" data-scroll-target="coverage">◉ <span>Attack coverage</span><span class="count" id="rail-detected">0/7</span></button>
+  </nav>
+  <div class="rail-label">Attack library</div>
+  <nav class="rail-nav" id="rail-attack-links" aria-label="Attack library"></nav>
+  <div class="rail-status"><b>● LIVE SENSOR MESH</b><br>WebSocket telemetry is connected. IP locations are approximate geolocation, not physical tracking.</div>
+</aside>
+
+<section class="dashboard-content" id="overview">
+
+<div class="header">
+  <div class="title-block">
+    <div class="eyebrow">Autonomous deception · threat containment</div>
+    <h1>ADTCN — Autonomous Deception &amp; Threat Containment Network</h1>
+    <div class="sub"><span class="live-dot" id="live-dot"></span><span id="conn-status">connecting…</span></div>
+  </div>
+  <div class="header-controls">
+    <button class="btn" id="mute-btn" onclick="toggleMute()">🔊 Alarm on</button>
+    <button class="btn logout" id="logout-btn">Sign out</button>
+  </div>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card"><div class="num" id="stat-incidents">0</div><div class="label">Active Incidents</div></div>
+  <div class="stat-card alert"><div class="num" id="stat-compromised">0</div><div class="label">Compromised Hosts</div></div>
+  <div class="stat-card"><div class="num" id="stat-honeytokens">0</div><div class="label">Honeytokens Triggered</div></div>
+  <div class="stat-card"><div class="num" id="stat-events">0</div><div class="label">Events Processed</div></div>
+  <div class="stat-card"><div class="num" id="stat-evidence">—</div><div class="label">Evidence Chain</div></div>
+</div>
+
+<section class="panel coverage-panel" id="coverage">
+  <div class="coverage-heading"><div><h2>Attack coverage <span>live telemetry window</span></h2><p>Recognized attack patterns across the current evidence chain.</p></div><div class="coverage-total" id="coverage-total">0 / 7 detected</div></div>
+  <div class="coverage-grid" id="coverage-grid"></div>
+</section>
+
+<div class="attack-detail-layout">
+  <div class="panel attack-detail-panel" id="attack-detail">
+    <div class="detail-empty">Select an attack from the left library to inspect how it works and review its evidence.</div>
+  </div>
+  <div class="panel map-panel">
+    <h2>Attacker IP Map <span>live + timeline</span></h2>
+    <div class="map-canvas" id="attack-map"><div class="empty-hint">Waiting for attacker telemetry…</div></div>
+    <div class="map-events" id="map-events"><div class="empty-hint">No attack time recorded</div></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Entity Threat Scores</h2>
+    <div class="panel-body" id="entity-list"><div class="empty-hint">No activity yet</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Live Event Feed</h2>
+    <div class="panel-body" id="event-feed"><div class="empty-hint">Waiting for events…</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Attack Path (chronological, left → right)</h2>
+    <div id="flow-svg-wrap"><div class="empty-hint" id="flow-empty-hint">No attack path reconstructed yet</div></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel containment-panel">
+    <h2>Containment scope <span>simulated response</span></h2>
+    <div class="containment-grid" id="containment-scope"><div class="detail-empty">No containment action yet.</div></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel ai-panel">
+    <h2>AI Detection Reasoning</h2>
+    <div class="panel-body" id="ai-detections"><div class="empty-hint">Waiting for the AI correlation engine…</div></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel incidents-panel">
+    <h2>Incidents &amp; Autonomous Response</h2>
+    <div class="incidents-grid" id="incidents"><div class="empty-hint">No incidents yet</div></div>
+  </div>
+</div>
+
+<div class="footer-note">Backend: <span id="backend-url"></span> — evidence chain verified against a SHA-256 hash chain, not a claim of network security.</div>
+
+</section>
+</div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BACKEND_HTTP = window.location.origin;
+const wsHost = window.location.hostname;
+const WS_URL = "ws://" + wsHost + ":8001";
+document.getElementById("backend-url").textContent = BACKEND_HTTP;
+
+let eventCount = 0;
+let alarmMuted = false;
+
+const ATTACK_CATALOG = [
+  ["Phishing", "Initial access", "Deceptive messages redirect users to malicious links or credential capture pages.", "The AI correlates sender reputation, lookalike domains, links, and click telemetry.", ["phishing"], "#eec14c", "✉"],
+  ["Social engineering", "Initial access", "People or trusted workflows are manipulated to bypass normal safeguards.", "The AI spots urgency, authority spoofing, unusual approvals, and baseline deviation.", ["social_engineering"], "#f0954a", "◌"],
+  ["DDoS", "Impact", "Distributed traffic overwhelms an edge, service, or application.", "Traffic bursts, source spread, elevated errors, and service-profile deviation are correlated.", ["ddos"], "#f24f4f", "≋"],
+  ["Brute force", "Credential access", "Repeated authentication attempts guess or validate credentials.", "Failure velocity, spray patterns, source diversity, and impossible travel are correlated.", ["brute_force"], "#c875ff", "⌁"],
+  ["SQL injection", "Initial access", "Untrusted input changes the meaning of a database query.", "Unsafe parameters, query errors, abnormal data access, and endpoint context are correlated.", ["sql_injection"], "#54a8ff", "⌘"],
+  ["Man in the middle", "Credential access", "Traffic is intercepted or altered between trusted endpoints.", "Certificate mismatches, rogue gateways, route changes, and session paths are correlated.", ["man_in_the_middle"], "#2fd480", "⇄"],
+  ["Ransomware", "Impact", "Rapid encryption or destructive file activity disrupts operations.", "Mass file changes, encryption behavior, recovery tampering, and prior chain context are correlated.", ["ransomware_activity"], "#ff5a61", "□"]
+];
+
+const attackCounts = {};
+const attackEvidence = {};
+let selectedAttack = "Phishing";
+ATTACK_CATALOG.forEach(attack => attackCounts[attack[0]] = 0);
+
+function catalogAttackForEvent(event) {
+  return ATTACK_CATALOG.find(attack => attack[4].includes(event.event_type)) ||
+    ATTACK_CATALOG.find(attack => attack[0] === event.attack_type) || null;
+}
+
+function renderCoverage() {
+  const grid = document.getElementById("coverage-grid");
+  const detected = Object.values(attackCounts).filter(count => count > 0).length;
+  document.getElementById("coverage-total").textContent = `${detected} / ${ATTACK_CATALOG.length} detected`;
+  document.getElementById("rail-detected").textContent = `${detected}/${ATTACK_CATALOG.length}`;
+  grid.innerHTML = ATTACK_CATALOG.map(attack => `<article class="coverage-card" data-attack="${escapeHtml(attack[0])}" style="--coverage:${attack[5]}">
+    <span class="icon">${attack[6]}</span><span class="coverage-count">${attackCounts[attack[0]]}</span>
+    <h3>${escapeHtml(attack[0])}</h3><small>${attackCounts[attack[0]] ? "observed in evidence chain" : "monitoring"}</small>
+  </article>`).join("");
+}
+
+const geoByAttack = {};
+const geoByIp = {};
+const libraryMiniMaps = {};
+const WORLD_LAND = `<path class="world-land" d="M8 30l8-9 15 1 9 8-4 7-10 2-5 12-8-2-4-8zM39 21l11-4 10 5 4 9-7 5-5 14-8-2-3-12-6-5zM56 49l9-4 10 4 4 8-10 5-6-3-8 3-5-6zM72 25l12-5 13 5 7 8-8 5-4 10-9-1-5-9-8-4zM83 55l13-4 12 6 8 10-7 7-12-4-7-8-9-2z"/>`;
+function worldMapMarkup(info) {
+  const hasPoint = Number.isFinite(info.latitude) && Number.isFinite(info.longitude);
+  const x = hasPoint ? ((info.longitude + 180) / 360 * 100).toFixed(2) : 50;
+  const y = hasPoint ? ((90 - info.latitude) / 180 * 100).toFixed(2) : 50;
+  return `<svg class="world-map" viewBox="0 0 120 80" preserveAspectRatio="none" aria-label="World IP location map">
+    <path class="world-grid" d="M0 20h120M0 40h120M0 60h120M30 0v80M60 0v80M90 0v80"/>${WORLD_LAND}
+    <circle class="world-pin" cx="${(Number(x) * 1.2).toFixed(2)}" cy="${(Number(y) * 0.8).toFixed(2)}" r="2.3"/>
+  </svg>`;
+}
+
+function attackByName(name) { return ATTACK_CATALOG.find(a => a[0] === name); }
+function renderAttackDetail() {
+  const attack = attackByName(selectedAttack);
+  const panel = document.getElementById("attack-detail");
+  if (!attack) return;
+  const evidence = attackEvidence[selectedAttack] || [];
+  const latest = evidence[0];
+  panel.innerHTML = `<div class="detail-kicker">Attack intelligence / ${escapeHtml(attack[1])}</div>
+    <div class="detail-title"><h2>${escapeHtml(attack[0])}</h2><span class="detail-status">${attackCounts[selectedAttack] ? "OBSERVED" : "MONITORING"}</span></div>
+    <div class="detail-description">${escapeHtml(attack[2])}</div>
+    <div class="detail-section"><h3>How the attack works</h3><p>${escapeHtml(attack[2])}</p></div>
+    <div class="detail-section"><h3>How AI detects it</h3><p>${escapeHtml(attack[3])}</p></div>
+    <div class="detail-section"><h3>Observed telemetry</h3><p>${latest ? `${escapeHtml(latest.attacker_ip || "unknown IP")} · ${escapeHtml(formatAttackTime(latest.timestamp))}` : "No telemetry for this attack yet."}</p></div>
+    <div class="detail-section"><h3>Simulation evidence</h3><div class="evidence-list">${evidence.length ? evidence.slice(0, 5).map(event => {
+      const metadata = event.metadata || {};
+      const evidenceText = metadata.url || metadata.link || metadata.cmdline || metadata.method || metadata.files_affected || metadata.reason || JSON.stringify(metadata);
+      return `<div class="evidence-item"><b>${escapeHtml(event.source || "sensor event")}</b>${escapeHtml(evidenceText)}<br><span>${escapeHtml(event.entity_id)} · ${escapeHtml(formatAttackTime(event.timestamp))} · ${escapeHtml(event.attacker_ip || "unknown IP")}</span></div>`;
+    }).join("") : '<div class="detail-empty">Waiting for a matching event. Select another attack in the left library.</div>'}</div></div>`;
+}
+
+function renderLibraryCard(attack) {
+  const info = geoByAttack[attack[0]] || { ip: "No attacker IP yet", location: "Waiting for telemetry" };
+  const location = info.location || "IP location unavailable";
+  return `<article class="library-card" data-attack-card="${escapeHtml(attack[0])}">
+    <div class="library-tactic">${escapeHtml(attack[1])}</div><h3>${escapeHtml(attack[0])}</h3>
+    <div class="library-mini-map" data-mini-map="${escapeHtml(attack[0])}"></div>
+    <p class="library-location">${escapeHtml(info.ip || "unknown IP")} · ${escapeHtml(location)}</p>
+    <p>${escapeHtml(attack[2])}</p><p><b>AI:</b> ${escapeHtml(attack[3])}</p>
+    <p><b>Last seen:</b> ${info.timestamp ? escapeHtml(formatAttackTime(info.timestamp)) : "No event yet"}</p>
+  </article>`;
+}
+
+function renderLibraryMiniMaps() {
+  if (!window.L) return;
+  Object.values(libraryMiniMaps).forEach(map => map.remove());
+  Object.keys(libraryMiniMaps).forEach(key => delete libraryMiniMaps[key]);
+  ATTACK_CATALOG.forEach(attack => {
+    const element = document.querySelector(`[data-mini-map="${CSS.escape(attack[0])}"]`);
+    if (!element) return;
+    const map = L.map(element, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false }).setView([20, 0], 1);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 5, attribution: "© OpenStreetMap contributors © CARTO" }).addTo(map);
+    const info = geoByAttack[attack[0]];
+    if (info && Number.isFinite(info.latitude) && Number.isFinite(info.longitude)) {
+      L.circleMarker([info.latitude, info.longitude], { radius: 5, color: "#B6FF2E", weight: 2, fillColor: "#B6FF2E", fillOpacity: 0.9 }).addTo(map);
+      map.setView([info.latitude, info.longitude], 2);
+    }
+    libraryMiniMaps[attack[0]] = map;
+  });
+}
+
+function renderAttackCatalog() {
+  const links = document.getElementById("rail-attack-links");
+  links.innerHTML = ATTACK_CATALOG.map(attack => `<button class="rail-link" data-scroll-target="${escapeHtml(attack[0])}"><span style="color:${attack[5]}">${attack[6]}</span><span>${escapeHtml(attack[0])}</span><span class="count" data-rail-count="${escapeHtml(attack[0])}">${attackCounts[attack[0]]}</span></button>`).join("");
+  renderCoverage();
+  renderAttackDetail();
+  document.querySelectorAll("[data-scroll-target]").forEach(button => button.addEventListener("click", () => {
+    if (button.dataset.scrollTarget === "overview" || button.dataset.scrollTarget === "coverage") {
+      document.getElementById(button.dataset.scrollTarget).scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    selectedAttack = button.dataset.scrollTarget;
+    renderAttackDetail();
+    document.getElementById("attack-detail").scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+}
+
+function isPublicIp(ip) {
+  return /^(?!10\.)(?!127\.)(?!192\.168\.)(?!172\.(1[6-9]|2\d|3[0-1])\.)(?!192\.0\.2\.)(?!198\.51\.100\.)(?!203\.0\.113\.)\d{1,3}(?:\.\d{1,3}){3}$/.test(ip);
+}
+
+async function geolocateIp(attackType, ip, timestamp) {
+  if (geoByIp[ip]) {
+    geoByAttack[attackType] = { ...geoByIp[ip], ip, timestamp };
+    renderAttackCatalog();
+    renderAttackMap();
+    return;
+  }
+  const fallback = { ip, location: isPublicIp(ip) ? "Resolving IP location…" : "Lab / reserved IP · no location" };
+  geoByAttack[attackType] = { ...fallback, timestamp };
+  renderAttackCatalog();
+  if (!isPublicIp(ip)) return;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4500);
+    const response = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, { signal: controller.signal });
+    clearTimeout(timer);
+    const data = await response.json();
+    const location = [data.city, data.region, data.country_name].filter(Boolean).join(", ") || "IP location unavailable";
+    geoByIp[ip] = { ip, location, latitude: Number(data.latitude), longitude: Number(data.longitude) };
+    geoByAttack[attackType] = { ...geoByIp[ip], timestamp };
+    renderAttackCatalog();
+    renderAttackMap();
+  } catch (error) {
+    geoByIp[ip] = fallback;
+    geoByAttack[attackType] = { ...fallback, timestamp };
+    renderAttackCatalog();
+    renderAttackMap();
+  }
+}
+
+const attackMapRecords = {};
+let attackLeafletMap = null;
+let attackLeafletMarkers = [];
+function formatAttackTime(timestamp) { return new Date(timestamp * 1000).toLocaleString(); }
+
+function renderAttackMap() {
+  const map = document.getElementById("attack-map");
+  const records = Object.values(attackMapRecords).sort((a, b) => b.lastTimestamp - a.lastTimestamp);
+  if (!attackLeafletMap && window.L) {
+    map.innerHTML = "";
+    attackLeafletMap = L.map(map, { worldCopyJump: true, zoomControl: true, attributionControl: true }).setView([20, 0], 2);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 10, attribution: "© OpenStreetMap contributors © CARTO" }).addTo(attackLeafletMap);
+  }
+  if (attackLeafletMap) {
+    attackLeafletMarkers.forEach(marker => marker.remove());
+    attackLeafletMarkers = [];
+    const points = records.map(record => ({ record, geo: geoByIp[record.ip] })).filter(item => item.geo && Number.isFinite(item.geo.latitude) && Number.isFinite(item.geo.longitude));
+    points.forEach(({ record, geo }) => {
+      const marker = L.circleMarker([geo.latitude, geo.longitude], { radius: 7, color: "#B6FF2E", weight: 2, fillColor: "#B6FF2E", fillOpacity: 0.8 }).addTo(attackLeafletMap);
+      marker.bindPopup(`<div class="ip-popup"><strong>${escapeHtml(record.ip)}</strong><small>${escapeHtml(geo.location || "IP location")}</small><small>${escapeHtml(record.attackType)} · ${record.count} event${record.count === 1 ? "" : "s"}</small><small>Last seen ${escapeHtml(formatAttackTime(record.lastTimestamp))}</small></div>`);
+      attackLeafletMarkers.push(marker);
+    });
+    if (points.length > 1) attackLeafletMap.fitBounds(L.latLngBounds(points.map(point => [point.geo.latitude, point.geo.longitude])).pad(0.25));
+    else if (points.length === 1) attackLeafletMap.setView([points[0].geo.latitude, points[0].geo.longitude], 3);
+  } else if (!window.L) {
+    map.innerHTML = '<div class="map-empty">Real map tiles are loading…</div>';
+  }
+  document.getElementById("map-events").innerHTML = records.slice(0, 4).map(r => `
+    <div class="map-event"><b>${escapeHtml(r.attackType)}</b><small>${escapeHtml(r.ip)} · ${formatAttackTime(r.lastTimestamp)}</small><small>${r.count} event${r.count === 1 ? "" : "s"}</small></div>`).join("");
+  if (!records.length) document.getElementById("map-events").innerHTML = '<div class="empty-hint">No attack time recorded</div>';
+}
+
+function recordAttackLocation(event) {
+  const ip = event.attacker_ip || (event.metadata && event.metadata.attacker_ip) || "192.0.2.10";
+  const catalogAttack = catalogAttackForEvent(event);
+  const attackType = catalogAttack ? catalogAttack[0] : (event.attack_type || event.event_type);
+  if (catalogAttack) {
+    attackCounts[catalogAttack[0]]++;
+    (attackEvidence[catalogAttack[0]] ||= []).unshift(event);
+  }
+  const record = attackMapRecords[ip] || { ip, entityId: event.entity_id, count: 0, targets: [] };
+  record.entityId = event.entity_id;
+  record.count++;
+  record.lastTimestamp = event.timestamp;
+  record.attackType = attackType;
+  if (event.graph_dst) record.targets.push(event.graph_dst);
+  if (event.metadata && event.metadata.graph_dst) record.targets.push(event.metadata.graph_dst);
+  attackMapRecords[ip] = record;
+  renderAttackMap();
+  const attack = attackByName(attackType);
+  if (attack) geolocateIp(attackType, ip, event.timestamp);
+  if (attackType === selectedAttack) renderAttackDetail();
+  renderCoverage();
+  document.querySelectorAll("[data-rail-count]").forEach(count => {
+    count.textContent = attackCounts[count.dataset.railCount] || 0;
+  });
+}
+
+let audioCtx = null;
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq, durationMs, delayMs) {
+  if (alarmMuted) return;
+  setTimeout(() => {
+    const ctx = ensureAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.15;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationMs / 1000);
+  }, delayMs);
+}
+function playAlarm(level) {
+  if (level === "EMERGENCY" || level === "ISOLATE") {
+    beep(950, 150, 0);
+    beep(950, 150, 220);
+    beep(950, 150, 440);
+  } else if (level === "RESTRICT") {
+    beep(700, 180, 0);
+  }
+}
+function playAttackSound(eventType) {
+  const pulseCount = eventType === "ransomware_activity" ? 12 : 7;
+  const pulseInterval = eventType === "ransomware_activity" ? 300 : 360;
+  const frequency = eventType === "ransomware_activity" ? 980 : 640;
+  for (let pulse = 0; pulse < pulseCount; pulse++) {
+    beep(frequency, eventType === "ransomware_activity" ? 230 : 190, pulse * pulseInterval);
+  }
+}
+function toggleMute() {
+  alarmMuted = !alarmMuted;
+  const btn = document.getElementById("mute-btn");
+  btn.textContent = alarmMuted ? "🔇 Alarm off" : "🔊 Alarm on";
+  btn.classList.toggle("active", alarmMuted);
+}
+
+function scoreToLevel(score) {
+  if (score < 30) return "NORMAL";
+  if (score < 60) return "SUSPICIOUS";
+  if (score < 80) return "HIGH_RISK";
+  return "CRITICAL";
+}
+
+function renderEntities(entities) {
+  const list = document.getElementById("entity-list");
+  if (!entities.length) { list.innerHTML = '<div class="empty-hint">No activity yet</div>'; return; }
+  list.innerHTML = "";
+  let compromised = 0;
+  entities.sort((a, b) => b.threat_score - a.threat_score);
+  entities.forEach(e => {
+    const level = scoreToLevel(e.threat_score);
+    if (e.threat_score >= 60) compromised++;
+    const div = document.createElement("div");
+    div.className = "entity-item";
+    div.innerHTML = `
+      <div class="row">
+        <span class="name">${e.entity_id}</span>
+        <span class="level-tag ${level}">${e.threat_score} · ${level}</span>
+      </div>
+      <div class="score-track"><div class="score-fill fill-${level}" style="width:${e.threat_score}%"></div></div>
+    `;
+    list.appendChild(div);
+  });
+  document.getElementById("stat-compromised").textContent = compromised;
+}
+
+function renderEvent(e, live = false) {
+  eventCount++;
+  document.getElementById("stat-events").textContent = eventCount;
+  const feed = document.getElementById("event-feed");
+  if (feed.querySelector(".empty-hint")) feed.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "event-row";
+  const t = new Date(e.timestamp * 1000).toLocaleTimeString();
+  const isDecoy = e.event_type.startsWith("decoy_");
+  row.innerHTML = `
+    <div class="dot ${isDecoy ? 'decoy' : ''}"></div>
+    <div class="time">${t}</div>
+    <div class="body"><span class="type">${escapeHtml(e.attack_type || e.event_type)}</span> on <b>${escapeHtml(e.entity_id)}</b> (+${e.weight}) · ${escapeHtml(e.source)} · IP ${escapeHtml(e.attacker_ip || "unknown")}</div>
+  `;
+  feed.prepend(row);
+  recordAttackLocation(e);
+  if (isDecoy) {
+    document.getElementById("stat-honeytokens").textContent =
+      parseInt(document.getElementById("stat-honeytokens").textContent) + 1;
+  }
+  markContainmentEvent(e);
+  if (live) playAttackSound(e.event_type);
+}
+
+function renderIncident(incident) {
+  document.getElementById("stat-incidents").textContent =
+    parseInt(document.getElementById("stat-incidents").textContent) + 1;
+  renderIncidentSilently(incident);
+  playAlarm(incident.response_level);
+}
+
+function renderIncidentSilently(incident) {
+  const box = document.getElementById("incidents");
+  if (box.querySelector(".empty-hint")) box.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "incident-card " + incident.response_level;
+  const t = new Date(incident.timestamp * 1000).toLocaleTimeString();
+  div.innerHTML = `
+    <div class="top-row"><span class="level">${incident.response_level}</span><span>${t}</span></div>
+    <div><b>${incident.entity_id}</b> — score ${incident.threat_score}</div>
+    <div class="reason">${incident.reason}</div>
+    <div class="action">→ ${incident.action_taken}</div>
+  `;
+  box.prepend(div);
+}
+
+function renderAiDetection(detection) {
+  const box = document.getElementById("ai-detections");
+  if (box.querySelector(".empty-hint")) box.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "ai-detection";
+  const t = new Date(detection.timestamp * 1000).toLocaleTimeString();
+  div.innerHTML = `<div class="top-row"><b>${escapeHtml(detection.attack_type)}</b><span class="confidence">${detection.confidence} confidence · ${t}</span></div>
+    <div><b>${escapeHtml(detection.entity_id)}</b> · ${escapeHtml(detection.tactic)}</div>
+    <div class="detail"><strong>Working:</strong> ${escapeHtml(detection.working)}</div>
+    <div class="detail"><strong>AI reasoning:</strong> ${escapeHtml(detection.detection)}</div>`;
+  box.prepend(div);
+}
+
+// ---------------- Attack flow diagram: deterministic layered layout ----------------
+// No physics simulation, no loops-look-like-spaghetti: each node gets a
+// fixed "layer" (its distance from the earliest node in the path), so
+// the diagram always reads left-to-right in the order the attack moved.
+let flowEdges = [];
+const containmentState = {};
+let decoyEvidence = null;
+const NODE_W = 168, NODE_H = 46, LAYER_GAP = 90, ROW_GAP = 64;
+
+function markContainmentEvent(event) {
+  if (event.entity_id) containmentState[event.entity_id] = "ATTACKED";
+  if (event.graph_dst) containmentState[event.graph_dst] = "ATTACKED";
+  if (event.metadata && event.metadata.graph_dst) containmentState[event.metadata.graph_dst] = "ATTACKED";
+  if (event.event_type === "decoy_file_accessed" || (event.metadata && (event.metadata.decoy_file_path || event.metadata.decoy_file_taken))) {
+    decoyEvidence = { ...event, ...(event.metadata || {}) };
+  }
+  if (event.event_type === "ransomware_activity") {
+    containmentState[event.entity_id] = "ISOLATED";
+    applyEncryptionScope(event.entity_id);
+  }
+  renderContainmentScope();
+}
+
+function applyEncryptionScope(isolatedEntity) {
+  const nodes = new Set();
+  flowEdges.forEach(edge => { nodes.add(edge.src); nodes.add(edge.dst); });
+  ["PC-01", "PC-02", "PC-03", "SERVER-01", "SERVER-02", "SERVER-03", "DATABASE-01", "DATABASE-02"].forEach(asset => nodes.add(asset));
+  nodes.forEach(node => {
+    if (node !== isolatedEntity && /PC-|SERVER|DATABASE|EDGE/i.test(node) && !containmentState[node]) containmentState[node] = "ENCRYPTED";
+  });
+}
+
+function renderContainmentScope() {
+  const isolated = Object.keys(containmentState).filter(asset => containmentState[asset] === "ISOLATED");
+  const encrypted = Object.keys(containmentState).filter(asset => containmentState[asset] === "ENCRYPTED");
+  const attacked = Object.keys(containmentState).filter(asset => containmentState[asset] === "ATTACKED");
+  const decoy = decoyEvidence ? `<p><b>${escapeHtml(decoyEvidence.decoy_file_path || "Decoy file")}</b> taken at ${escapeHtml(formatAttackTime(decoyEvidence.timestamp))}; malware injected on <b>${escapeHtml(decoyEvidence.malware_target || "attacker host")}</b> at ${escapeHtml(formatAttackTime(decoyEvidence.malware_injected_at || decoyEvidence.timestamp))}.</p>` : "<p>No decoy file has been opened yet.</p>";
+  document.getElementById("containment-scope").innerHTML = `<div class="containment-group isolated"><h3>Isolated now</h3>${isolated.length ? isolated.map(asset => `<span class="containment-asset">${escapeHtml(asset)}</span>`).join("") : "<p>None</p>"}</div>
+    <div class="containment-group encrypted"><h3>Encrypted / protected</h3>${encrypted.length ? encrypted.map(asset => `<span class="containment-asset">${escapeHtml(asset)}</span>`).join("") : "<p>Awaiting ransomware response</p>"}</div>
+    <div class="containment-group decoy"><h3>Decoy evidence</h3>${decoy}<p>${attacked.length ? `${attacked.length} asset(s) observed in the attack path.` : "No attacked assets recorded yet."}</p></div>`;
+}
+
+function computeLayers(edges) {
+  const nodes = new Set();
+  edges.forEach(e => { nodes.add(e.src); nodes.add(e.dst); });
+
+  const adjacency = {};
+  nodes.forEach(n => adjacency[n] = []);
+  edges.forEach(e => adjacency[e.dst].push(e.src));
+
+  const layer = {};
+  function computeLayer(node, visiting) {
+    if (layer[node] !== undefined) return layer[node];
+    if (visiting.has(node)) return 0;
+    visiting.add(node);
+    const preds = adjacency[node];
+    let l = 0;
+    if (preds.length) {
+      l = 1 + Math.max(...preds.map(p => computeLayer(p, visiting)));
+    }
+    layer[node] = l;
+    return l;
+  }
+  nodes.forEach(n => computeLayer(n, new Set()));
+  return layer;
+}
+
+function renderFlow() {
+  const wrap = document.getElementById("flow-svg-wrap");
+  if (!flowEdges.length) {
+    wrap.innerHTML = '<div class="empty-hint" id="flow-empty-hint">No attack path reconstructed yet</div>';
+    return;
+  }
+
+  const layer = computeLayers(flowEdges);
+  const nodesByLayer = {};
+  Object.keys(layer).forEach(n => {
+    const l = layer[n];
+    (nodesByLayer[l] = nodesByLayer[l] || []).push(n);
+  });
+
+  const maxLayer = Math.max(...Object.values(layer));
+  const maxRows = Math.max(...Object.values(nodesByLayer).map(a => a.length));
+  const width = (maxLayer + 1) * (NODE_W + LAYER_GAP) + 40;
+  const height = Math.max(maxRows * ROW_GAP + 40, 200);
+
+  const pos = {};
+  Object.keys(nodesByLayer).forEach(l => {
+    nodesByLayer[l].forEach((n, i) => {
+      pos[n] = {
+        x: 20 + l * (NODE_W + LAYER_GAP),
+        y: 20 + i * ROW_GAP + (height - nodesByLayer[l].length * ROW_GAP) / 2
+      };
+    });
+  });
+
+  let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#4c9eef"></path>
+      </marker>
+    </defs>`;
+
+  const edgeLabelOffsets = {};
+  flowEdges.forEach(e => {
+    const a = pos[e.src], b = pos[e.dst];
+    if (!a || !b) return;
+    const x1 = a.x + NODE_W, y1 = a.y + NODE_H / 2;
+    const x2 = b.x, y2 = b.y + NODE_H / 2;
+    const midX = (x1 + x2) / 2;
+    const key = e.src + "->" + e.dst;
+    const offset = (edgeLabelOffsets[key] = (edgeLabelOffsets[key] || 0) + 1);
+    const curve = y1 === y2 ? 0 : (y2 - y1) * 0.25;
+    svg += `<g class="flow-edge">
+      <path d="M${x1},${y1} C${midX},${y1 + curve} ${midX},${y2 - curve} ${x2},${y2}"></path>
+      <text x="${midX}" y="${(y1 + y2) / 2 - 6 - (offset - 1) * 12}" text-anchor="middle">${escapeHtml(e.label)}</text>
+    </g>`;
+  });
+
+  Object.keys(pos).forEach(n => {
+    const p = pos[n];
+    const sensitive = /database|server|admin|finance/i.test(n);
+    const state = containmentState[n] || "OBSERVED";
+    const stateClass = state.toLowerCase();
+    svg += `<g class="flow-node ${sensitive ? 'sensitive' : ''} ${stateClass}">
+      <rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" rx="8"></rect>
+      <text x="${p.x + NODE_W / 2}" y="${p.y + 18}" text-anchor="middle">${escapeHtml(truncate(n, 22))}</text>
+      <text class="state-label" x="${p.x + NODE_W / 2}" y="${p.y + 35}" text-anchor="middle">${state}</text>
+    </g>`;
+  });
+
+  svg += `</svg>`;
+  wrap.innerHTML = svg;
+}
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+function escapeHtml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+async function loadInitialState() {
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/state`);
+    const data = await res.json();
+    renderEntities(data.entities);
+    if (eventCount === 0 && data.events) data.events.forEach(event => renderEvent(event, false));
+    document.getElementById("incidents").innerHTML =
+      data.incidents.length ? "" : '<div class="empty-hint">No incidents yet</div>';
+    data.incidents.slice().reverse().forEach(renderIncidentSilently);
+    document.getElementById("stat-incidents").textContent = data.incidents.length;
+
+    const g = await (await fetch(`${BACKEND_HTTP}/graph`)).json();
+    flowEdges = g.edges.map(e => ({ src: e.src, dst: e.dst, label: e.label }));
+    const isolatedEntity = Object.keys(containmentState).find(asset => containmentState[asset] === "ISOLATED");
+    if (isolatedEntity) applyEncryptionScope(isolatedEntity);
+    renderContainmentScope();
+    renderFlow();
+
+    const ev = await (await fetch(`${BACKEND_HTTP}/evidence/verify`)).json();
+    document.getElementById("stat-evidence").textContent = ev.valid ? `VALID (${ev.total_entries})` : "TAMPERED";
+  } catch (err) {
+    console.error("Failed to load initial state:", err);
+  }
+}
+
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    document.getElementById("conn-status").textContent = "live";
+    document.getElementById("live-dot").classList.add("on");
+  };
+  ws.onclose = () => {
+  if (e.event_type === "decoy_file_accessed" || (e.metadata && e.metadata.decoy_file_taken)) {
+    decoyEvidence = { ...e, ...(e.metadata || {}) };
+    renderContainmentScope();
+  }
+    document.getElementById("conn-status").textContent = "disconnected — retrying…";
+    document.getElementById("live-dot").classList.remove("on");
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+    if (data.type === "event") {
+      renderEvent(data.payload, true);
+    } else if (data.type === "score_update") {
+      loadInitialState();
+    } else if (data.type === "incident") {
+      renderIncident(data.payload);
+    } else if (data.type === "ai_detection") {
+      renderAiDetection(data.payload);
+    } else if (data.type === "decoy_deployed") {
+      const feed = document.getElementById("event-feed");
+      if (feed.querySelector(".empty-hint")) feed.innerHTML = "";
+      const row = document.createElement("div");
+      row.className = "event-row";
+      row.innerHTML = `<div class="dot decoy"></div><div class="time"></div>
+        <div class="body"><span class="type">adaptive decoy deployed</span> in zone <b>${data.payload.zone}</b></div>`;
+      feed.prepend(row);
+    }
+  };
+}
+
+const DEMO_LOGIN_ID = "shivamray@SOC.in";
+const DEMO_LOGIN_PASSWORD = "Krishu!@#123";
+
+function openDashboard() {
+  document.getElementById("login-page").hidden = true;
+  document.getElementById("app-shell").hidden = false;
+  const audio = ensureAudioCtx();
+  if (audio.state === "suspended") audio.resume();
+  renderAttackCatalog();
+  loadInitialState();
+  connect();
+}
+
+document.getElementById("login-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const identity = document.getElementById("login-id").value.trim();
+  const password = document.getElementById("login-password").value;
+  const error = document.getElementById("login-error");
+  if (identity === DEMO_LOGIN_ID && password === DEMO_LOGIN_PASSWORD) {
+    sessionStorage.setItem("adtcn_authenticated", "true");
+    error.textContent = "";
+    openDashboard();
+  } else {
+    error.textContent = "Access denied. Check your SOC identity and password.";
+  }
+});
+
+document.getElementById("logout-btn").addEventListener("click", () => {
+  sessionStorage.removeItem("adtcn_authenticated");
+  window.location.reload();
+});
+
+if (sessionStorage.getItem("adtcn_authenticated") === "true") openDashboard();
+</script>
+</body>
+</html>
