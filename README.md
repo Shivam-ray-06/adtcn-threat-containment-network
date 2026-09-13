@@ -48,6 +48,19 @@ is actual project logic, not boilerplate from a library.
 You need: a JDK (11+), a C++17 compiler (g++ or clang++), and a
 browser. No package managers needed.
 
+## Quick start
+
+From the repository root, run:
+
+```bash
+./run.sh
+```
+
+Then open **http://localhost:8000** and sign in with the local demo account
+shown below. `run.sh` resolves its own location, builds the Java and C++
+components, and starts the dashboard backend even when invoked from another
+working directory.
+
 ```bash
 cd adtcn-v2
 ./build.sh
@@ -149,15 +162,12 @@ the attack path (`layer = 1 + max(layer of predecessors)`), so the
 diagram always reads strictly left-to-right in the order the attacker
 actually moved, with rendered arrows and no overlapping loops.
 
-**Alarm sound.** When an incident escalates to `ISOLATE` or
-`EMERGENCY` (i.e. the system is actually taking containment action),
-the dashboard plays a triple alarm beep via the Web Audio API — no
-audio file needed, it's a synthesized square-wave tone generated in
-JS. `RESTRICT`-level incidents get a single softer beep.
-`INCREASE_MONITORING`/`OBSERVE` stay silent (matches the
-false-positive-protection design: you don't want alarm fatigue for
-every weak signal). There's a mute toggle in the top-right for when
-you want to demo without sound.
+**Alarm sound.** Each live attack event plays a sustained alarm sequence
+through the Web Audio API; ransomware uses a longer emergency sequence.
+No audio file is needed because the tones are synthesized in JavaScript.
+The login gesture unlocks browser audio, and the mute toggle in the
+top-right disables the sequences when needed. Historical events stay silent
+when the dashboard is reloaded.
 
 **Cleaner layout overall**: score bars instead of bare numbers,
 color-coded severity throughout, a live-connection indicator, and

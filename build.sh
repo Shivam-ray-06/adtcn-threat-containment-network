@@ -2,6 +2,8 @@
 # build.sh — compiles the Java backend and all three C++ programs.
 # Run this once (and again any time you edit source) before using run instructions in README.md.
 set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 echo "=== Building Java backend ==="
 cd backend-java
