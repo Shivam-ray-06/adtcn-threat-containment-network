@@ -33,6 +33,16 @@ This is arguably a _better_ thing to show judges than a pile of
 framework imports: it's ~2,000 lines of code where nearly every line
 is actual project logic, not boilerplate from a library.
 
+## License and third-party services
+
+The project source code is licensed under the MIT License; see
+`LICENSE`. The dashboard loads Leaflet from its public CDN and uses
+dark CARTO/OpenStreetMap map tiles, so the displayed attribution must
+remain visible and their current usage terms apply. Public-IP location
+lookups use `ipapi.co` when browser network access is available; its
+service terms and rate limits apply separately. These external services
+are optional to the local telemetry and scoring code.
+
 ## What each service does
 
 | Service          | Language   | Role                                                                                                            |
